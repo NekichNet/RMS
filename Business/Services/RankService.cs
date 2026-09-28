@@ -23,9 +23,10 @@ namespace Business.Services
 
         public async Task<ActionResult<Rank>> CreateAsync(
             string name,
-			ushort counterToReach,
-			string color,
-			int? lowerId
+            ushort counterToReach,
+            string color,
+            int? lowerId,
+            int? index
         )
         {
             ActionResult<Rank> action = new ActionResult<Rank>(_logger);
@@ -36,26 +37,28 @@ namespace Business.Services
                 if (!result.IsSuccess)
                     return action.FormFailure("Creating rank restricted. Permission check failed", eventId: EventIds.Forbidden);
 
-                if (lowerId == null)
-                    return action.FormFailure("Creating rank failed. Lower rank ID is not provided", eventId: EventIds.InvalidInput);
-
-                Rank? lowerRank = await _db.Ranks.FindAsync(lowerId);
-                if (lowerRank == null)
-                    return action.FormFailure("Creating rank failed. Lower rank not found", eventId: EventIds.NotFound);
+                if (index == null)
+                {
+                    if (lowerId == null)
+                        return action.FormFailure("Creating rank failed. Index or lower id was not provided", eventId: EventIds.InvalidInput);
+                    Rank? lowerRank = await _db.Ranks.FindAsync(lowerId);
+                    if (lowerRank == null)
+                        return action.FormFailure("Creating rank failed. Lower rank was not found", eventId: EventIds.NotFound);
+                    index = lowerRank.Index;
+                }
 
                 action.Value = new Rank
                 {
                     Name = name,
                     CounterToReach = counterToReach,
                     Color = color,
-                    LowerId = lowerId,
-                    HigherId = lowerRank.HigherId
+                    Index = (int)index
                 };
 
                 await _db.Ranks.AddAsync(action.Value);
                 await _db.SaveChangesAsync();
 
-                action.FormSuccess($"Rank {name} created");
+                action.FormSuccess($"Rank {name} with ID {action.Value.Id} created", eventId: EventIds.Created);
             }
             catch (Exception ex)
             {
@@ -73,9 +76,9 @@ namespace Business.Services
             {
                 action.Value = await _db.Ranks.FindAsync(rankId);
                 if (action.Value != null)
-                    action.FormSuccess("Rank found", eventId: EventIds.Read);
+                    action.FormSuccess($"Rank {action.Value.Name} with ID {rankId} found", eventId: EventIds.Read);
                 else
-                    action.FormFailure("Rank not found", eventId: EventIds.NotFound);
+                    action.FormFailure($"Rank with ID {rankId} not found", eventId: EventIds.NotFound);
             }
             catch (Exception ex)
             {
@@ -103,7 +106,51 @@ namespace Business.Services
             return action;
         }
 
-        public async Task<EmptyAction> DeleteAsync(int rankId)
+		public async Task<ActionResult<List<Rank>>> GetAllRanksHigherAsync(int rankId)
+		{
+			ActionResult<List<Rank>> action = new ActionResult<List<Rank>>(_logger);
+
+			try
+			{
+				Rank? rank = await _db.Ranks.FindAsync(rankId);
+				if (rank == null)
+					return action.FormFailure($"Getting all ranks higher failed. Rank with ID {rankId} not found", eventId: EventIds.NotFound);
+
+				action.Value = await _db.Ranks.Where(r => r.Index > rank.Index).ToListAsync();
+				action.FormSuccess("Higher ranks list formed, length: " + action.Value.Count(),
+					eventId: action.Value.Count() > 0 ? EventIds.Read : EventIds.NoData);
+			}
+			catch (Exception ex)
+			{
+				return action.FormException(ex);
+			}
+
+			return action;
+		}
+
+		public async Task<ActionResult<List<Rank>>> GetAllRanksLowerAsync(int rankId)
+		{
+			ActionResult<List<Rank>> action = new ActionResult<List<Rank>>(_logger);
+
+			try
+			{
+				Rank? rank = await _db.Ranks.FindAsync(rankId);
+				if (rank == null)
+					return action.FormFailure($"Getting all ranks lower failed. Rank with ID {rankId} not found", eventId: EventIds.NotFound);
+
+				action.Value = await _db.Ranks.Where(r => r.Index < rank.Index).ToListAsync();
+				action.FormSuccess("Lower ranks list formed, length: " + action.Value.Count(),
+					eventId: action.Value.Count() > 0 ? EventIds.Read : EventIds.NoData);
+			}
+			catch (Exception ex)
+			{
+				return action.FormException(ex);
+			}
+
+			return action;
+		}
+
+		public async Task<EmptyAction> DeleteAsync(int rankId)
         {
             EmptyAction action = new EmptyAction(_logger);
 
@@ -116,12 +163,6 @@ namespace Business.Services
                 Rank? rank = await _db.Ranks.FindAsync(rankId);
                 if (rank == null)
                     return action.FormFailure("Rank deleting failed. Rank not found", eventId: EventIds.NotFound);
-
-                if (rank.Higher != null)
-                    rank.Higher.LowerId = rank.LowerId;
-
-                if (rank.Lower != null)
-                    rank.Lower.HigherId = rank.HigherId;
 
                 _db.Ranks.Remove(rank);
 
@@ -142,7 +183,8 @@ namespace Business.Services
             string name,
             ushort counterToReach,
             string color,
-            int? lowerId
+            int? lowerId,
+            int? index
         )
         {
             EmptyAction action = new EmptyAction(_logger);
@@ -157,18 +199,20 @@ namespace Business.Services
                 if (rank == null)
                     return action.FormFailure("Rank updating failed. Rank not found", eventId: EventIds.NotFound);
 
-                if (lowerId == null && rank.LowerId != null)
-                    return action.FormFailure("Rank updating failed. Lower ID is not provided", eventId: EventIds.InvalidInput);
-
-                Rank? lowerRank = await _db.Ranks.FindAsync(lowerId);
-                if (lowerRank == null)
-                    return action.FormFailure("Rank updating failed. Lower rank not found", eventId: EventIds.NotFound);
+				if (index == null)
+				{
+					if (lowerId == null)
+						return action.FormFailure("Creating rank failed. Index or lower id was not provided", eventId: EventIds.InvalidInput);
+					Rank? lowerRank = await _db.Ranks.FindAsync(lowerId);
+					if (lowerRank == null)
+						return action.FormFailure("Creating rank failed. Lower rank was not found", eventId: EventIds.NotFound);
+					index = lowerRank.Index;
+				}
 
                 rank.Name = name;
 				rank.CounterToReach = counterToReach;
                 rank.Color = color;
-                rank.LowerId = lowerId;
-                rank.HigherId = lowerRank.HigherId;
+                rank.Index = (int)index;
 
                 rank.UpdateRole();
 
@@ -250,7 +294,7 @@ namespace Business.Services
 					if (permissionDto.PermissionId > 0 && permissionDto.PermissionId <= typeof(PermissionType).GetEnumValues().Length)
 					{
 						PermissionType permissionType = (PermissionType)permissionDto.PermissionId;
-						if (Actor.HasPermission(permissionType) && !rank.HasPermission(permissionType))
+						if (Actor.HasPermission(permissionType) && !(await CheckHasPermissionAsync(rank.Id, permissionType)).IsSuccess)
 						{
 							Permission? permission = await _db.Permissions.FindAsync(permissionType);
 							if (permission != null)
@@ -274,6 +318,73 @@ namespace Business.Services
 			catch (Exception ex)
 			{
 				action.FormException(ex);
+			}
+
+			return action;
+		}
+
+        public async Task<EmptyAction> CheckHasPermissionAsync(int rankId, PermissionType permissionType)
+        {
+			EmptyAction action = new EmptyAction(_logger);
+
+			try
+			{
+				ActionResult<HashSet<Permission>> result = await GetRankPermissionsAsync(rankId);
+                if (!result.IsSuccess)
+                    return action.FormFailure($"Checking permission in rank with ID {rankId} failed", eventId: EventIds.Failed);
+
+                if (result.Value.Any(p => p.Type == permissionType))
+                    action.FormSuccess($"Rank with ID {rankId} has {permissionType.ToString()} permission", eventId: EventIds.Ok);
+                else
+                    action.FormFailure($"Rank with ID {rankId} does not have {permissionType.ToString()} permission", eventId: EventIds.Ok);
+			}
+			catch (Exception ex)
+			{
+				return action.FormException(ex);
+			}
+
+			return action;
+		}
+
+        public async Task<ActionResult<HashSet<GivedPermission<Rank>>>> GetRankGivedPermissionsAsync(int rankId)
+        {
+            ActionResult<HashSet<GivedPermission<Rank>>> action = new ActionResult<HashSet<GivedPermission<Rank>>>(_logger);
+
+            try
+            {
+                ActionResult<List<Rank>> result = await GetAllRanksLowerAsync(rankId);
+                if (!result.IsSuccess)
+                    return action.FormFailure($"Getting rank with ID {rankId} gived permissions failed", eventId: EventIds.Failed);
+
+                action.Value = result.Value.SelectMany(r => r.GivedPermissions.Where(gp => gp.Inherit)).ToHashSet();
+				action.FormSuccess("Rank gived permissions list formed, length: " + action.Value.Count(),
+					eventId: action.Value.Count() > 0 ? EventIds.Read : EventIds.NoData);
+			}
+            catch (Exception ex)
+            {
+                return action.FormException(ex);
+            }
+
+            return action;
+        }
+
+		public async Task<ActionResult<HashSet<Permission>>> GetRankPermissionsAsync(int rankId)
+		{
+			ActionResult<HashSet<Permission>> action = new ActionResult<HashSet<Permission>>(_logger);
+
+			try
+			{
+				ActionResult<List<Rank>> result = await GetAllRanksLowerAsync(rankId);
+				if (!result.IsSuccess)
+					return action.FormFailure($"Getting rank permissions failed", eventId: EventIds.Failed);
+
+				action.Value = result.Value.SelectMany(r => r.GivedPermissions.Where(gp => gp.Inherit).Select(gp => gp.Permission)).ToHashSet();
+				action.FormSuccess("Rank permissions list formed, length: " + action.Value.Count(),
+					eventId: action.Value.Count() > 0 ? EventIds.Read : EventIds.NoData);
+			}
+			catch (Exception ex)
+			{
+				return action.FormException(ex);
 			}
 
 			return action;
@@ -393,6 +504,9 @@ namespace Business.Services
                 if (isDowngrade)
                     steps = -steps;
 
+                if (steps == 0)
+                    return action.FormFailure($"Changing rank failed. Cannot set zero steps", eventId: EventIds.ImpossibleAction);
+
 				List<AssignedRank> assignedRanks = new List<AssignedRank>();
 
 				foreach (ulong unitId in unitIds)
@@ -424,17 +538,21 @@ namespace Business.Services
 						continue;
 					}
 
-					Rank targetRank = currentRank;
-                    for (int i = 0; i < Math.Abs(steps); i++)
+                    Rank targetRank;
+                    if (steps > 0)
                     {
-                        if (targetRank.Higher != null)
-                        {
-                            if (ignorePostMaxRank || targetRank.Higher.GetIndex() >= maxRank.GetIndex())
-                            {
-                                targetRank = targetRank.Higher;
-                            }
-                        }
+                        var higherRanks = await _db.Ranks.Where(r => r.Index >= currentRank.Index).OrderBy(r => r.Index).ToListAsync();
+                        steps = higherRanks.Count < steps ? higherRanks.Count : steps;
+                        targetRank = higherRanks[steps];
+                        if (!ignorePostMaxRank && targetRank.Index > maxRank.Index)
+                            targetRank = maxRank;
                     }
+                    else
+                    {
+						var lowerRanks = await _db.Ranks.Where(r => r.Index <= currentRank.Index).OrderByDescending(r => r.Index).ToListAsync();
+						steps = lowerRanks.Count < steps ? lowerRanks.Count : steps;
+						targetRank = lowerRanks[steps];
+					}
 
 					if (targetRank == currentRank)
                     {

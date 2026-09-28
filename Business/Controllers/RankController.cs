@@ -72,7 +72,7 @@ namespace Business.Controllers
         {
             try
             {
-                var action = await _rankService.GetAsync(rankId);
+                var action = await _rankService.GetRankPermissionsAsync(rankId);
                 if (!action.IsSuccess)
                 {
                     return BadRequest(new { error = action.Message });
@@ -82,7 +82,7 @@ namespace Business.Controllers
                     return NotFound(new { error = "Rank not found" });
                 }
 
-                var permissions = action.Value.GetPermissionsRecursive();
+                var permissions = action.Value;
                 return Ok(permissions);
             }
             catch (Exception ex)
