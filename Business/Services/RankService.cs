@@ -6,6 +6,7 @@ using Business.Models.Statuses;
 using Business.Models.Util;
 using Business.Services.Abstraction;
 using Microsoft.EntityFrameworkCore;
+using System.Buffers;
 
 namespace Business.Services
 {
@@ -44,7 +45,10 @@ namespace Business.Services
                     Rank? lowerRank = await _db.Ranks.FindAsync(lowerId);
                     if (lowerRank == null)
                         return action.FormFailure("Creating rank failed. Lower rank was not found", eventId: EventIds.NotFound);
-                    index = lowerRank.Index;
+					EmptyAction reservingResult = await ReserveIndexAsync(lowerRank.Index - 1);
+					if (reservingResult == null)
+						return action.FormFailure($"Creating rank failed. Unexpected error while reserving index", eventId: EventIds.HandledError);
+					index = lowerRank.Index - 1;
                 }
 
                 action.Value = new Rank
@@ -206,7 +210,10 @@ namespace Business.Services
 					Rank? lowerRank = await _db.Ranks.FindAsync(lowerId);
 					if (lowerRank == null)
 						return action.FormFailure("Creating rank failed. Lower rank was not found", eventId: EventIds.NotFound);
-					index = lowerRank.Index;
+					EmptyAction reservingResult = await ReserveIndexAsync(lowerRank.Index - 1);
+					if (reservingResult == null)
+						return action.FormFailure($"Creating rank failed. Unexpected error while reserving index", eventId: EventIds.HandledError);
+					index = lowerRank.Index - 1;
 				}
 
                 rank.Name = name;
@@ -229,7 +236,56 @@ namespace Business.Services
             return action;
         }
 
-        public async Task<ActionResult<ulong?>> UpdateRoleAsync(int rankId)
+        public async Task<EmptyAction> UpdateIndexAsync(int rankId, int newIndex)
+        {
+            EmptyAction action = new EmptyAction(_logger);
+
+            try
+            {
+                Rank? rank = await _db.Ranks.FindAsync(rankId);
+                if (rank == null)
+                    return action.FormFailure($"Updating rank index failed. Rank with ID {rankId} not found", eventId: EventIds.NotFound);
+                EmptyAction result = await ReserveIndexAsync(newIndex);
+                if (result == null)
+					return action.FormFailure($"Updating rank index failed. Unexpected error while reserving index", eventId: EventIds.HandledError);
+				rank.Index = newIndex;
+
+				await _db.SaveChangesAsync();
+				action.FormSuccess($"Set {newIndex} index for rank {rank.Name} with ID {rankId}", eventId: EventIds.Updated);
+			}
+            catch (Exception ex)
+            {
+                action.FormException(ex);
+            }
+
+            return action;
+        }
+
+		public async Task<EmptyAction> ReserveIndexAsync(int index)
+		{
+			EmptyAction action = new EmptyAction(_logger);
+
+			try
+			{
+                List<Rank> blockingRanks = await _db.Ranks.Where(r => r.Index == index).OrderBy(r => r.Index).ToListAsync();
+                for (int i = 0; i < blockingRanks.Count; i++)
+                {
+					await ReserveIndexAsync(blockingRanks[i].Index - blockingRanks.Count);
+                    blockingRanks[i].Index -= blockingRanks.Count;
+				}
+
+                await _db.SaveChangesAsync();
+                action.FormSuccess($"Reserved rank index {index}. {blockingRanks.Count} rank indexes moved", eventId: EventIds.Updated);
+			}
+			catch (Exception ex)
+			{
+				action.FormException(ex);
+			}
+
+			return action;
+		}
+
+		public async Task<ActionResult<ulong?>> UpdateRoleAsync(int rankId)
         {
 			ActionResult<ulong?> action = new ActionResult<ulong?>(_logger);
 
