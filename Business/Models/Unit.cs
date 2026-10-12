@@ -33,8 +33,6 @@ namespace Business.Models
 		[JsonIgnore] public virtual List<Activity> Activities { get; set; } = new List<Activity>();
 		[JsonIgnore] public virtual List<UnitState> UnitStates { get; set; } = new List<UnitState>();
 		[JsonIgnore] public virtual List<SingleDayEvent> SingleDayEvents { get; set; } = new List<SingleDayEvent>();
-
-		[NotMapped] public int? RankUpCounterMax { get { return GetCounterToReach(); } }
         
 		public UnitRegistrationEvent? GetRegistrationEvent()
 		{
@@ -76,41 +74,23 @@ namespace Business.Models
 		/// <returns>Rank, если есть должности. null, если должностей нет</returns>
 		public Rank? GetMaxRank()
 		{
-			Rank? rank = null;
-            List<Rank> higherRanks = new List<Rank>();
-            foreach (Post post in GetPosts())
-			{
-				if (rank != null)
-				{
-					if (!higherRanks.Contains(post.MaxRank))
-						continue;
-				}
-				rank = post.MaxRank;
-				higherRanks = rank.GetAllHigherRecursive();
-			}
-			return rank;
+			return GetPosts().Select(p => p.MaxRank).MinBy(r => r.Index);
 		}
 
 		/// <summary>
 		/// Получить значение счётчика, при котором бойца нужно будет повысить в звании
 		/// </summary>
 		/// <returns>int, если есть возможность повыситься, иначе - null</returns>
+		/*
 		public int? GetCounterToReach()
 		{
 			Rank? rank = GetRank();
-			if (rank != null)
+			Rank? maxRank = GetMaxRank();
+			if (rank != null && maxRank != null)
 			{
-				Rank? maxRank = GetMaxRank();
-				if (maxRank != null)
+				if (rank.Index > maxRank.Index)
 				{
-					if (rank.GetAllHigherRecursive().Contains(maxRank))
-					{
-						Rank? higherRank = rank.Higher;
-						if (higherRank != null)
-						{
-							return higherRank.CounterToReach;
-						}
-					}
+					
 				}
 			}
 			return null;
@@ -124,6 +104,7 @@ namespace Business.Models
 			else
 				return RankUpCounter.ToString();
 		}
+		*/
 
 		public List<AssignedPost> GetAssignedPosts(DateTime? dateTime = null)
 		{
@@ -144,28 +125,6 @@ namespace Business.Models
 				.Where(ap => ap.IsActive(dateTime))
 				.Select(ap => ap.Post)
 				.ToList();
-		}
-
-		public HashSet<Permission> GetPermissions()
-		{
-			HashSet<Permission> permissions = new HashSet<Permission>();
-
-			Rank? rank = GetRank();
-			if (rank != null)
-				permissions.UnionWith(rank.GetPermissionsRecursive());
-
-			permissions.UnionWith(GetPosts().SelectMany(p => p.GetPermissionsRecursive()));
-			return permissions;
-		}
-
-		public bool HasPermission(PermissionType permissionType)
-		{
-			return GetPermissions().Any(p => p.Type == permissionType || p.Type == PermissionType.Administrator);
-		}
-
-		public bool IsAdmin()
-		{
-			return GetPermissions().Any(p => p.Type == PermissionType.Administrator);
 		}
 
 		public Retirement? GetRetirement(DateTime? dateTime = null)
@@ -276,7 +235,7 @@ namespace Business.Models
 
 		public int? GetRankIndex()
 		{
-			return GetRank()?.GetIndex();
+			return GetRank()?.Index;
         }
 
 		public int? GetPostIndex()
@@ -291,7 +250,7 @@ namespace Business.Models
 				DiscordId = DiscordId.ToString(),
 				Nickname = Nickname,
 				SteamId = SteamId.ToString() ?? "",
-				RankUpCounter = GetRankUpCounterString(),
+				RankUpCounter = RankUpCounter,
 				Joined = GetRegistrationDateTimeString(),
 				Gender = (int)Gender,
 				RankIndex = GetRankIndex(),
@@ -322,7 +281,7 @@ namespace Business.Models
         public string DiscordId { get; set; } = string.Empty;
         public string Nickname { get; set; } = string.Empty;
         public string SteamId { get; set; } = string.Empty;
-        public string RankUpCounter { get; set; } = string.Empty;
+        public int RankUpCounter { get; set; } = 0;
         public string Joined { get; set; } = string.Empty;
         public int Gender { get; set; }
 		public int? RankIndex { get; set; } = 0;

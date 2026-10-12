@@ -13,11 +13,17 @@ namespace Business.Services
     {
         private readonly AppDbContext _db;
         private readonly DocService _docService;
+        private readonly UnitPermissionService _unitPermissionService;
 
-        public RewardService(AppDbContext db, DocService docService, ILogger logger) : base(logger)
+        public RewardService(
+            AppDbContext db,
+            DocService docService,
+            UnitPermissionService unitPermissionService,
+            ILogger logger) : base(logger)
         {
             _db = db;
             _docService = docService;
+            _unitPermissionService = unitPermissionService;
         }
 
         public async Task<ActionResult<Reward>> CreateAsync(
@@ -234,7 +240,7 @@ namespace Business.Services
                 if (Actor == null)
 					return action.FormFailure("Assigning rewards restricted. Unauthorized", eventId: EventIds.Unauthorized);
 
-				if (!Actor.HasPermission(PermissionType.AssignRewards))
+				if (!(await _unitPermissionService.CheckUnitHasPermissionAsync(Actor.DiscordId, PermissionType.AssignRewards)).IsSuccess)
 					return action.FormFailure($"Assigning rewards restricted. {Actor.Nickname} doesn't have AssignRewards permission", eventId: EventIds.Forbidden);
 
 				if (docId != null)
@@ -371,7 +377,7 @@ namespace Business.Services
 				if (Actor == null)
 					return action.FormFailure("Permission check failed. Unauthorized", eventId: EventIds.Unauthorized);
 
-				if (!Actor.HasPermission(PermissionType.ManageRewards))
+				if (!(await _unitPermissionService.CheckUnitHasPermissionAsync(Actor.DiscordId, PermissionType.ManageRewards)).IsSuccess)
 					return action.FormFailure($"Permission check failed. {Actor.Nickname} doesn't have ManageRewards permission", eventId: EventIds.Forbidden);
 
 				action.FormSuccess($"{Actor.Nickname} can manage rewards", eventId: EventIds.Accessed);

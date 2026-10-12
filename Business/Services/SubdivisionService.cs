@@ -11,9 +11,14 @@ namespace Business.Services
     public class SubdivisionService : BusinessService
     {
         private readonly AppDbContext _db;
+        private readonly UnitPermissionService _unitPermissionService;
 
-        public SubdivisionService(AppDbContext db, ILogger logger) : base(logger)
+        public SubdivisionService(
+			UnitPermissionService unitPermissionService,
+			AppDbContext db,
+            ILogger logger) : base(logger)
         {
+            _unitPermissionService = unitPermissionService;
             _db = db;
         }
 
@@ -33,7 +38,7 @@ namespace Business.Services
                 {
                     if (Actor == null)
                         return action.FormFailure("Creating subdivision restricted. Unauthorized", eventId: EventIds.Unauthorized);
-                    if (!Actor.HasPermission(PermissionType.ManageStructure))
+                    if (!(await _unitPermissionService.CheckUnitHasPermissionAsync(Actor.DiscordId, PermissionType.ManageStructure)).IsSuccess)
                         return action.FormFailure("Creating subdivision restricted", eventId: EventIds.Forbidden);
                 }
                 else
@@ -196,7 +201,7 @@ namespace Business.Services
 
 				foreach (GivedPermission<Subdivision> givedPermission in givedPermissions)
 				{
-					if (Actor.HasPermission(givedPermission.PermissionType))
+					if ((await _unitPermissionService.CheckUnitHasPermissionAsync(Actor.DiscordId, givedPermission.PermissionType)).IsSuccess)
 						_db.SubdivisionPermissions.Remove(givedPermission);
 				}
 
@@ -205,7 +210,7 @@ namespace Business.Services
 					if (permissionDto.PermissionId > 0 && permissionDto.PermissionId <= typeof(PermissionType).GetEnumValues().Length)
 					{
 						PermissionType permissionType = (PermissionType)permissionDto.PermissionId;
-						if (Actor.HasPermission(permissionType) && !subdivisionResult.Value.HasPermission(permissionType))
+						if ((await _unitPermissionService.CheckUnitHasPermissionAsync(Actor.DiscordId, PermissionType.ManageStructure)).IsSuccess && !subdivisionResult.Value.HasPermission(permissionType))
 						{
 							Permission? permission = await _db.Permissions.FindAsync(permissionType);
 							if (permission != null)
@@ -275,9 +280,9 @@ namespace Business.Services
 
                 List<Post> actorControllablePosts = Actor.GetPosts().SelectMany(p => p.GetAllSubordinatesRecursive()).ToList();
 
-                if (!Actor.HasPermission(PermissionType.ManageStructure))
+                if (!(await _unitPermissionService.CheckUnitHasPermissionAsync(Actor.DiscordId, PermissionType.ManageStructure)).IsSuccess)
                     return action.FormFailure($"{Actor.Nickname} don't have ManageStructure permission", eventId: EventIds.Forbidden);
-                else if (!Actor.IsAdmin() && action.Value.Posts.Any(p => !actorControllablePosts.Contains(p)))
+                else if (!(await _unitPermissionService.CheckUnitIsAdminAsync(Actor.DiscordId)).IsSuccess && action.Value.Posts.Any(p => !actorControllablePosts.Contains(p)))
                     return action.FormFailure($"Subdivision {action.Value.GetFullName()} is not under {Actor.Nickname}'s control", eventId: EventIds.Forbidden);
 
                 action.FormSuccess($"{Actor.Nickname} can manage subdivision {action.Value.GetFullName()}");

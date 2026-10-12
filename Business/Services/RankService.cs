@@ -6,19 +6,24 @@ using Business.Models.Statuses;
 using Business.Models.Util;
 using Business.Services.Abstraction;
 using Microsoft.EntityFrameworkCore;
-using System.Buffers;
 
 namespace Business.Services
 {
     public class RankService : BusinessService
     {
         private readonly AppDbContext _db;
+		private readonly UnitPermissionService _unitPermissionService;
+		private readonly RankPermissionService _rankPermissionService;
 
         public RankService(
             AppDbContext db,
+			UnitPermissionService unitPermissionService,
+			RankPermissionService rankPermissionService,
 			ILogger logger)
             : base(logger)
         {
+			_unitPermissionService = unitPermissionService;
+			_rankPermissionService = rankPermissionService;
             _db = db;
         }
 
@@ -26,8 +31,8 @@ namespace Business.Services
             string name,
             ushort counterToReach,
             string color,
-            int? lowerId,
-            int? index
+            int? lowerId = null,
+            int? index = null
         )
         {
             ActionResult<Rank> action = new ActionResult<Rank>(_logger);
@@ -109,6 +114,54 @@ namespace Business.Services
 
             return action;
         }
+
+        public async Task<ActionResult<Rank>> GetHigherRankAsync(int rankId)
+        {
+            ActionResult<Rank> action = new ActionResult<Rank>(_logger);
+
+            try
+            {
+				Rank? rank = await _db.Ranks.FindAsync(rankId);
+				if (rank == null)
+					return action.FormFailure($"Getting higher rank failed. Rank with ID {rankId} not found", eventId: EventIds.NotFound);
+
+                action.Value = await _db.Ranks.OrderByDescending(r => r.Index).FirstOrDefaultAsync(r => r.Index < rank.Index);
+                if (action.Value == null)
+                    return action.FormFailure($"Rank {rank.Name} with ID {rankId} has no higher rank", eventId: EventIds.NoData);
+
+                action.FormSuccess($"Retrieved rank {rank.Name} with ID {rank.Id} higher rank {action.Value.Name} with ID {action.Value.Id}", eventId: EventIds.Read);
+			}
+            catch (Exception ex)
+            {
+                action.FormException(ex);
+            }
+
+            return action;
+        }
+
+		public async Task<ActionResult<Rank>> GetLowerRankAsync(int rankId)
+		{
+			ActionResult<Rank> action = new ActionResult<Rank>(_logger);
+
+			try
+			{
+				Rank? rank = await _db.Ranks.FindAsync(rankId);
+				if (rank == null)
+					return action.FormFailure($"Getting lower rank failed. Rank with ID {rankId} not found", eventId: EventIds.NotFound);
+
+				action.Value = await _db.Ranks.OrderBy(r => r.Index).FirstOrDefaultAsync(r => r.Index > rank.Index);
+				if (action.Value == null)
+					return action.FormFailure($"Rank {rank.Name} with ID {rankId} has no lower rank", eventId: EventIds.NoData);
+
+				action.FormSuccess($"Retrieved rank {rank.Name} with ID {rank.Id} lower rank {action.Value.Name} with ID {action.Value.Id}", eventId: EventIds.Read);
+			}
+			catch (Exception ex)
+			{
+				action.FormException(ex);
+			}
+
+			return action;
+		}
 
 		public async Task<ActionResult<List<Rank>>> GetAllRanksHigherAsync(int rankId)
 		{
@@ -341,7 +394,7 @@ namespace Business.Services
 
 				foreach (GivedPermission<Rank> givedPermission in givedPermissions)
 				{
-					if (Actor.HasPermission(givedPermission.PermissionType))
+					if ((await _unitPermissionService.CheckUnitHasPermissionAsync(Actor.DiscordId, givedPermission.PermissionType)).IsSuccess)
 						_db.RankPermissions.Remove(givedPermission);
 				}
 
@@ -350,7 +403,8 @@ namespace Business.Services
 					if (permissionDto.PermissionId > 0 && permissionDto.PermissionId <= typeof(PermissionType).GetEnumValues().Length)
 					{
 						PermissionType permissionType = (PermissionType)permissionDto.PermissionId;
-						if (Actor.HasPermission(permissionType) && !(await CheckHasPermissionAsync(rank.Id, permissionType)).IsSuccess)
+						if ((await _unitPermissionService.CheckUnitHasPermissionAsync(Actor.DiscordId, permissionType)).IsSuccess
+							&& !(await _rankPermissionService.CheckRankHasPermissionAsync(rank.Id, permissionType)).IsSuccess)
 						{
 							Permission? permission = await _db.Permissions.FindAsync(permissionType);
 							if (permission != null)
@@ -374,73 +428,6 @@ namespace Business.Services
 			catch (Exception ex)
 			{
 				action.FormException(ex);
-			}
-
-			return action;
-		}
-
-        public async Task<EmptyAction> CheckHasPermissionAsync(int rankId, PermissionType permissionType)
-        {
-			EmptyAction action = new EmptyAction(_logger);
-
-			try
-			{
-				ActionResult<HashSet<Permission>> result = await GetRankPermissionsAsync(rankId);
-                if (!result.IsSuccess)
-                    return action.FormFailure($"Checking permission in rank with ID {rankId} failed", eventId: EventIds.Failed);
-
-                if (result.Value.Any(p => p.Type == permissionType))
-                    action.FormSuccess($"Rank with ID {rankId} has {permissionType.ToString()} permission", eventId: EventIds.Ok);
-                else
-                    action.FormFailure($"Rank with ID {rankId} does not have {permissionType.ToString()} permission", eventId: EventIds.Ok);
-			}
-			catch (Exception ex)
-			{
-				return action.FormException(ex);
-			}
-
-			return action;
-		}
-
-        public async Task<ActionResult<HashSet<GivedPermission<Rank>>>> GetRankGivedPermissionsAsync(int rankId)
-        {
-            ActionResult<HashSet<GivedPermission<Rank>>> action = new ActionResult<HashSet<GivedPermission<Rank>>>(_logger);
-
-            try
-            {
-                ActionResult<List<Rank>> result = await GetAllRanksLowerAsync(rankId);
-                if (!result.IsSuccess)
-                    return action.FormFailure($"Getting rank with ID {rankId} gived permissions failed", eventId: EventIds.Failed);
-
-                action.Value = result.Value.SelectMany(r => r.GivedPermissions.Where(gp => gp.Inherit)).ToHashSet();
-				action.FormSuccess("Rank gived permissions list formed, length: " + action.Value.Count(),
-					eventId: action.Value.Count() > 0 ? EventIds.Read : EventIds.NoData);
-			}
-            catch (Exception ex)
-            {
-                return action.FormException(ex);
-            }
-
-            return action;
-        }
-
-		public async Task<ActionResult<HashSet<Permission>>> GetRankPermissionsAsync(int rankId)
-		{
-			ActionResult<HashSet<Permission>> action = new ActionResult<HashSet<Permission>>(_logger);
-
-			try
-			{
-				ActionResult<List<Rank>> result = await GetAllRanksLowerAsync(rankId);
-				if (!result.IsSuccess)
-					return action.FormFailure($"Getting rank permissions failed", eventId: EventIds.Failed);
-
-				action.Value = result.Value.SelectMany(r => r.GivedPermissions.Where(gp => gp.Inherit).Select(gp => gp.Permission)).ToHashSet();
-				action.FormSuccess("Rank permissions list formed, length: " + action.Value.Count(),
-					eventId: action.Value.Count() > 0 ? EventIds.Read : EventIds.NoData);
-			}
-			catch (Exception ex)
-			{
-				return action.FormException(ex);
 			}
 
 			return action;
@@ -477,7 +464,7 @@ namespace Business.Services
             {
 				if (Actor == null)
 					return action.FormFailure("Permission check failed. Unauthorized", eventId: EventIds.Unauthorized);
-				if (!Actor.HasPermission(PermissionType.AssignRanks))
+				if (!(await _unitPermissionService.CheckUnitHasPermissionAsync(Actor.DiscordId, PermissionType.AssignRanks)).IsSuccess)
 					return action.FormFailure($"{Actor.Nickname} don't have AssignRanks permission", eventId: EventIds.Forbidden);
 
 				Rank? rank = await _db.Ranks.FindAsync(rankId);
@@ -553,7 +540,7 @@ namespace Business.Services
 			{
 				if (Actor == null)
 					return action.FormFailure("Changing rank restricted. Unauthorized", eventId: EventIds.Unauthorized);
-				if (!Actor.HasPermission(PermissionType.AssignRanks))
+				if (!(await _unitPermissionService.CheckUnitHasPermissionAsync(Actor.DiscordId, PermissionType.AssignRanks)).IsSuccess)
 					return action.FormFailure($"Changing rank restricted." +
                         $" {Actor.Nickname} don't have AssignRanks permission", eventId: EventIds.Forbidden);
 
@@ -673,7 +660,67 @@ namespace Business.Services
             return action;
         }
 
-        public async Task<EmptyAction> CheckCanManageRanksAsync()
+        public async Task<ActionResult<RankDto>> GetRankDto(int rankId)
+        {
+			ActionResult<RankDto> action = new ActionResult<RankDto>(_logger);
+
+			try
+			{
+				Rank? rank = await _db.Ranks.FindAsync(rankId);
+				if (rank == null)
+					return action.FormFailure($"Getting rank dto failed. Rank with ID {rankId} not found", eventId: EventIds.NotFound);
+
+				action.Value = new RankDto
+				{
+					Id = rank.Id,
+					Name = rank.Name,
+					CounterToReach = rank.CounterToReach,
+					Color = rank.Color,
+					DiscordRoleId = rank.DiscordRoleId,
+					Index = rank.Index,
+					LowerId = (await GetLowerRankAsync(rankId)).Value?.Id,
+					HigherId = (await GetHigherRankAsync(rankId)).Value?.Id,
+				};
+
+				action.FormSuccess($"Formed RankDto for rank {rank.Name} with ID {rankId}", eventId: EventIds.Read);
+			}
+			catch (Exception ex)
+			{
+				return action.FormException(ex);
+			}
+
+			return action;
+		}
+
+		public async Task<ActionResult<RankDto>> GetRankDto(Rank rank)
+		{
+			ActionResult<RankDto> action = new ActionResult<RankDto>(_logger);
+
+			try
+			{
+				action.Value = new RankDto
+				{
+					Id = rank.Id,
+					Name = rank.Name,
+					CounterToReach = rank.CounterToReach,
+					Color = rank.Color,
+					DiscordRoleId = rank.DiscordRoleId,
+					Index = rank.Index,
+					LowerId = (await GetLowerRankAsync(rank.Id)).Value?.Id,
+					HigherId = (await GetHigherRankAsync(rank.Id)).Value?.Id,
+				};
+
+				action.FormSuccess($"Formed RankDto for rank {rank.Name} with ID {rank.Id}", eventId: EventIds.Read);
+			}
+			catch (Exception ex)
+			{
+				return action.FormException(ex);
+			}
+
+			return action;
+		}
+
+		public async Task<EmptyAction> CheckCanManageRanksAsync()
         {
 			EmptyAction action = new EmptyAction(_logger);
 
@@ -681,7 +728,7 @@ namespace Business.Services
 			{
 				if (Actor == null)
 					return action.FormFailure("Can't check permissions. Unauthorized", eventId: EventIds.Unauthorized);
-				if (!Actor.HasPermission(PermissionType.ManageRanks))
+				if (!(await _unitPermissionService.CheckUnitHasPermissionAsync(Actor.DiscordId, PermissionType.ManageRanks)).IsSuccess)
 					return action.FormFailure($"{Actor.Nickname} don't have ManageRanks permission", eventId: EventIds.Forbidden);
 
 				action.FormSuccess($"{Actor.Nickname} can manage ranks");
@@ -702,7 +749,7 @@ namespace Business.Services
             {
                 if (Actor == null)
                     return action.FormFailure("Permission check failed. Unauthorized", eventId: EventIds.Unauthorized);
-                if (!Actor.HasPermission(PermissionType.AssignRanks))
+                if (!(await _unitPermissionService.CheckUnitHasPermissionAsync(Actor.DiscordId, PermissionType.AssignRanks)).IsSuccess)
                     return action.FormFailure($"{Actor.Nickname} don't have AssignRanks permission", eventId: EventIds.Forbidden);
 
                 if (unit == null)
@@ -711,7 +758,7 @@ namespace Business.Services
                     return action.FormFailure("Permission check failed. Unit not found", eventId: EventIds.NotFound);
                 action.Value = unit;
 
-                if (!unit.IsActive() && !Actor.IsAdmin())
+                if (!unit.IsActive() && !(await _unitPermissionService.CheckUnitIsAdminAsync(Actor.DiscordId)).IsSuccess)
                     return action.FormFailure($"Permission check failed." +
                         $" Unit {unit.Nickname} is in retirement or dismissed", eventId: EventIds.Forbidden);
 
@@ -720,7 +767,7 @@ namespace Business.Services
 									.SelectMany(p => p.GetAllHeadsRecursive())
 									.ToHashSet();
 
-				if (!Actor.IsAdmin() && _db.Posts.Except(headPosts).Intersect(unit.GetPosts()).Any())
+				if (!(await _unitPermissionService.CheckUnitIsAdminAsync(Actor.DiscordId)).IsSuccess && _db.Posts.Except(headPosts).Intersect(unit.GetPosts()).Any())
                     return action.FormFailure("Permission check failed. Can't change heads ranks", eventId: EventIds.Forbidden);
 
                 action.FormSuccess($"{Actor.Nickname} can change {action.Value.Nickname}'s rank");
@@ -741,10 +788,10 @@ namespace Business.Services
 			{
 				if (Actor == null)
 					return action.FormFailure("Getting available units to change rank failed. Unauthorized", eventId: EventIds.Unauthorized);
-				if (!Actor.HasPermission(PermissionType.AssignRanks))
+				if (!(await _unitPermissionService.CheckUnitHasPermissionAsync(Actor.DiscordId, PermissionType.AssignRanks)).IsSuccess)
 					return action.FormFailure($"{Actor.Nickname} don't have AssignRanks permission", eventId: EventIds.Forbidden);
 
-                if (Actor.IsAdmin())
+                if ((await _unitPermissionService.CheckUnitIsAdminAsync(Actor.DiscordId)).IsSuccess)
                 {
                     action.Value = await _db.Units.ToListAsync();
                 }

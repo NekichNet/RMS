@@ -96,25 +96,25 @@ namespace Business.Database
 			/* 2. Звания */
 			List<Rank> ranks = new List<Rank>()
             {
-                new Rank { Id = 1, Name = "Рекрут", CounterToReach = 0, Color = "#098100", HigherId = 2 },
-                new Rank { Id = 2, Name = "Рядовой", CounterToReach = 7, Color = "#098100", LowerId = 1, HigherId = 3 },
-                new Rank { Id = 3, Name = "Ефрейтор", CounterToReach = 3, Color = "#098100", LowerId = 2, HigherId = 4 },
-                new Rank { Id = 4, Name = "Младший Сержант", CounterToReach = 3, Color = "#0ba300", LowerId = 3, HigherId = 5 },
-                new Rank { Id = 5, Name = "Сержант", CounterToReach = 5, Color = "#0ba300", LowerId = 4, HigherId = 6 },
-                new Rank { Id = 6, Name = "Старший Сержант", CounterToReach = 5, Color = "#0ba300", LowerId = 5, HigherId = 7 },
-                new Rank { Id = 7, Name = "Старшина", CounterToReach = 5, Color = "#0ba300", LowerId = 6, HigherId = 8 },
-                new Rank { Id = 8, Name = "Прапорщик", CounterToReach = 7, Color = "#0ba300", LowerId = 7, HigherId = 9 },
-                new Rank { Id = 9, Name = "Старший Прапорщик", CounterToReach = 7, Color = "#0ba300", LowerId = 8, HigherId = 10 },
-                new Rank { Id = 10, Name = "Младший Лейтенант", CounterToReach = 7, Color = "#00db3a", LowerId = 9, HigherId = 11 },
-                new Rank { Id = 11, Name = "Лейтенант", CounterToReach = 7, Color = "#00db3a", LowerId = 10, HigherId = 12 },
-                new Rank { Id = 12, Name = "Старший Лейтенант", CounterToReach = 7, Color = "#00db3a", LowerId = 11, HigherId = 13 },
-                new Rank { Id = 13, Name = "Капитан", CounterToReach = 10, Color = "#00db3a", LowerId = 12, HigherId = 14 },
-                new Rank { Id = 14, Name = "Майор", CounterToReach = 20, Color = "#00ff88", LowerId = 13, HigherId = 15 },
-                new Rank { Id = 15, Name = "Подполковник", CounterToReach = 30, Color = "#00ff88", LowerId = 14, HigherId = 16 },
-                new Rank { Id = 16, Name = "Полковник", CounterToReach = 30, Color = "#00ff88", LowerId = 15, HigherId = 17 },
-                new Rank { Id = 17, Name = "Генерал-Майор", CounterToReach = 30, Color = "#00ffc0", LowerId = 16, HigherId = 18 },
-                new Rank { Id = 18, Name = "Генерал-Лейтенант", CounterToReach = 30, Color = "#00ffc0", LowerId = 17, HigherId = 19 },
-                new Rank { Id = 19, Name = "Генерал-Полковник", CounterToReach = 30, Color = "#00ffc0", LowerId = 18 }
+                new Rank { Id = 1, Name = "Рекрут", CounterToReach = 0, Color = "#098100", Index = 1 },
+                new Rank { Id = 2, Name = "Рядовой", CounterToReach = 7, Color = "#098100", Index = 2 },
+                new Rank { Id = 3, Name = "Ефрейтор", CounterToReach = 3, Color = "#098100", Index = 3 },
+                new Rank { Id = 4, Name = "Младший Сержант", CounterToReach = 3, Color = "#0ba300", Index = 4 },
+                new Rank { Id = 5, Name = "Сержант", CounterToReach = 5, Color = "#0ba300", Index = 5 },
+                new Rank { Id = 6, Name = "Старший Сержант", CounterToReach = 5, Color = "#0ba300", Index = 6 },
+                new Rank { Id = 7, Name = "Старшина", CounterToReach = 5, Color = "#0ba300", Index = 7 },
+                new Rank { Id = 8, Name = "Прапорщик", CounterToReach = 7, Color = "#0ba300", Index = 8 },
+                new Rank { Id = 9, Name = "Старший Прапорщик", CounterToReach = 7, Color = "#0ba300", Index = 9 },
+                new Rank { Id = 10, Name = "Младший Лейтенант", CounterToReach = 7, Color = "#00db3a", Index = 10 },
+                new Rank { Id = 11, Name = "Лейтенант", CounterToReach = 7, Color = "#00db3a", Index = 11 },
+                new Rank { Id = 12, Name = "Старший Лейтенант", CounterToReach = 7, Color = "#00db3a", Index = 12 },
+                new Rank { Id = 13, Name = "Капитан", CounterToReach = 10, Color = "#00db3a", Index = 13 },
+                new Rank { Id = 14, Name = "Майор", CounterToReach = 20, Color = "#00ff88", Index = 14 },
+                new Rank { Id = 15, Name = "Подполковник", CounterToReach = 30, Color = "#00ff88", Index = 15 },
+                new Rank { Id = 16, Name = "Полковник", CounterToReach = 30, Color = "#00ff88", Index = 16 },
+                new Rank { Id = 17, Name = "Генерал-Майор", CounterToReach = 30, Color = "#00ffc0", Index = 17 },
+                new Rank { Id = 18, Name = "Генерал-Лейтенант", CounterToReach = 30, Color = "#00ffc0", Index = 18 },
+                new Rank { Id = 19, Name = "Генерал-Полковник", CounterToReach = 30, Color = "#00ffc0", Index = 19 }
             };
             modelBuilder.Entity<Rank>().HasData(ranks);
 

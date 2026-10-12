@@ -15,12 +15,14 @@ namespace Business.Services
 		private readonly DocService _docService;
 		private readonly RankService _rankService;
 		private readonly SubdivisionService _subdivisionService;
+		private readonly UnitPermissionService _unitPermissionService;
 
         public PostService(
 			AppDbContext db,
 			DocService docService,
 			RankService rankService,
 			SubdivisionService subdivisionService,
+			UnitPermissionService unitPermissionService,
 			ILogger logger)
 			: base(logger)
         {
@@ -28,6 +30,7 @@ namespace Business.Services
 			_docService = docService;
 			_rankService = rankService;
 			_subdivisionService = subdivisionService;
+			_unitPermissionService = unitPermissionService;
         }
 
         public async Task<ActionResult<Post>> CreateAsync(
@@ -54,7 +57,7 @@ namespace Business.Services
 				{
 					if (Actor == null)
 						return action.FormFailure("Creating post restricted. Unauthorized", eventId: EventIds.Unauthorized);
-					if (!Actor.IsAdmin())
+					if (!(await _unitPermissionService.CheckUnitIsAdminAsync(Actor.DiscordId)).IsSuccess)
 						return action.FormFailure("Creating post restricted. Can't create post without head", eventId: EventIds.Forbidden);
 				}
 
@@ -68,14 +71,14 @@ namespace Business.Services
 
 				Rank? rank = Actor.GetMaxRank();
 				if (rank == null)
-					return action.FormFailure("PostId creation failed. Can't get user's max available post", eventId: EventIds.NotFound);
+					return action.FormFailure("Post creation failed. Can't get user's max available post", eventId: EventIds.NotFound);
 				
 				ActionResult<Rank> rankResult = await _rankService.GetAsync(maxRankId);
 				if (!rankResult.IsSuccess)
-					return action.FormFailure($"PostId creation failed. Rank with ID {maxRankId} not found", eventId: EventIds.NotFound);
+					return action.FormFailure($"Post creation failed. Rank with ID {maxRankId} not found", eventId: EventIds.NotFound);
 
-				if (rank.GetAllHigherRecursive().Contains(rankResult.Value))
-					return action.FormFailure($"PostId creation failed. Max post is higher, than user's max post", eventId: EventIds.Forbidden);
+				if (rankResult.Value.Index < rank.Index)
+					return action.FormFailure($"Post creation failed. Max rank is higher, than user's max rank", eventId: EventIds.Forbidden);
 
 				action.Value = new Post
 				{
@@ -93,7 +96,7 @@ namespace Business.Services
 				await _db.Posts.AddAsync(action.Value);
 				await _db.SaveChangesAsync();
 
-				action.FormSuccess($"PostId {action.Value.GetFullName()} with ID {action.Value.Id} created", eventId: EventIds.Created);
+				action.FormSuccess($"Post {action.Value.GetFullName()} with ID {action.Value.Id} created", eventId: EventIds.Created);
 			}
             catch (Exception ex)
             {
@@ -175,7 +178,7 @@ namespace Business.Services
 				{
 					if (Actor == null)
 						return action.FormFailure("Updating post restricted. Unauthorized", eventId: EventIds.Unauthorized);
-					if (!Actor.IsAdmin())
+					if (!(await _unitPermissionService.CheckUnitIsAdminAsync(Actor.DiscordId)).IsSuccess)
 						return action.FormFailure("Updating post restricted. Can't set post's head to null", eventId: EventIds.Forbidden);
 				}
 
@@ -206,7 +209,7 @@ namespace Business.Services
 					return action.FormFailure($"Post {postResult.Value.Name} with ID {postId} updating failed. " +
 						$"Rank with ID {maxRankId} not found", eventId: EventIds.NotFound);
 
-				if (rankResult.Value.GetIndex() < availableMaxRank.GetIndex())
+				if (rankResult.Value.Index < availableMaxRank.Index)
 					return action.FormFailure($"Post {postResult.Value.Name} with ID {postId} updating failed. " +
 						$"Rank {rankResult.Value.Name} is higher, " +
 						$"than unit's {Actor.Nickname} max available rank {availableMaxRank.Name}", eventId: EventIds.Forbidden);
@@ -256,7 +259,7 @@ namespace Business.Services
 
 				foreach (GivedPermission<Post> givedPermission in givedPermissions)
 				{
-					if (Actor.HasPermission(givedPermission.PermissionType))
+					if (!(await _unitPermissionService.CheckUnitHasPermissionAsync(Actor.DiscordId, givedPermission.PermissionType)).IsSuccess)
 						_db.PostPermissions.Remove(givedPermission);
 				}
 
@@ -265,7 +268,7 @@ namespace Business.Services
 					if (permissionDto.PermissionId > 0 && permissionDto.PermissionId <= typeof(PermissionType).GetEnumValues().Length)
 					{
 						PermissionType permissionType = (PermissionType)permissionDto.PermissionId;
-						if (Actor.HasPermission(permissionType) && !postResult.Value.HasPermission(permissionType))
+						if ((await _unitPermissionService.CheckUnitHasPermissionAsync(Actor.DiscordId, permissionType)).IsSuccess && !postResult.Value.HasPermission(permissionType))
 						{
 							Permission? permission = await _db.Permissions.FindAsync(permissionType);
 							if (permission != null)
@@ -380,7 +383,7 @@ namespace Business.Services
 			{
 				if (Actor == null)
 					return action.FormFailure("Posts assigning restricted. Unauthorized", eventId: EventIds.Unauthorized);
-				if (!Actor.HasPermission(PermissionType.AssignPosts))
+				if (!(await _unitPermissionService.CheckUnitHasPermissionAsync(Actor.DiscordId, PermissionType.AssignPosts)).IsSuccess)
 					return action.FormFailure("Posts assigning restricted", eventId: EventIds.Forbidden);
 
 				if (docId != null)
@@ -412,7 +415,7 @@ namespace Business.Services
 							$"Posts assigning failed. Unit with ID {unitId} not found");
 						continue;
 					}
-					if (!unit.IsActive() && !Actor.IsAdmin())
+					if (!unit.IsActive() && !(await _unitPermissionService.CheckUnitIsAdminAsync(Actor.DiscordId)).IsSuccess)
 					{
 						_logger.LogWarning(eventId: EventIds.Forbidden,
 							$"Posts assigning failed. Unit {unit.Nickname} is in retirement or dismissed");
@@ -618,7 +621,7 @@ namespace Business.Services
 			{
 				if (Actor == null)
 					return action.FormFailure("Can't check permissions. Unauthorized", eventId: EventIds.Unauthorized);
-				if (!Actor.HasPermission(PermissionType.ManageStructure))
+				if (!(await _unitPermissionService.CheckUnitHasPermissionAsync(Actor.DiscordId, PermissionType.ManageStructure)).IsSuccess)
 					return action.FormFailure($"{Actor.Nickname} doesn't have ManageStructure permission", eventId: EventIds.Forbidden);
 
 				if (post == null)
@@ -630,7 +633,7 @@ namespace Business.Services
 
 				List<Post> actorControllablePosts = Actor.GetPosts().SelectMany(p => p.GetAllSubordinatesRecursive()).ToList();
 				
-				if (!Actor.IsAdmin() && !actorControllablePosts.Contains(action.Value))
+				if (!(await _unitPermissionService.CheckUnitIsAdminAsync(Actor.DiscordId)).IsSuccess && !actorControllablePosts.Contains(action.Value))
 					return action.FormFailure($"PostId {action.Value.GetFullName()} isn't under {Actor.Nickname}'s control", eventId: EventIds.Forbidden);
 
 				action.FormSuccess($"{Actor.Nickname} can manage post {action.Value.GetFullName()}");
@@ -661,12 +664,12 @@ namespace Business.Services
 					return action.FormFailure($"Can't check post assignment permissions." +
 						$" PostId with ID {postId} not found", eventId: EventIds.NotFound);
 
-				if (!Actor.HasPermission(PermissionType.AssignPosts))
+				if (!(await _unitPermissionService.CheckUnitHasPermissionAsync(Actor.DiscordId, PermissionType.AssignPosts)).IsSuccess)
 					return action.FormFailure($"{Actor.Nickname} don't have AssignMultipleAsync permission", eventId: EventIds.Forbidden);
 
 				List<Post> actorHeads = Actor.GetPosts().SelectMany(p => p.GetAllHeadsRecursive()).ToList();
 
-				if (!Actor.IsAdmin() && actorHeads.Contains(action.Value))
+				if (!(await _unitPermissionService.CheckUnitIsAdminAsync(Actor.DiscordId)).IsSuccess && actorHeads.Contains(action.Value))
 					return action.FormFailure(
 						$"PostId {action.Value.GetFullName()} is one of {Actor.Nickname}'s heads", eventId: EventIds.Forbidden);
 
@@ -689,10 +692,10 @@ namespace Business.Services
 				if (Actor == null)
 					return action.FormFailure("Getting postsToAssign can assign failed. Unauthorized", eventId: EventIds.Unauthorized);
 
-				if (!Actor.HasPermission(PermissionType.AssignPosts))
+				if ((await _unitPermissionService.CheckUnitHasPermissionAsync(Actor.DiscordId, PermissionType.AssignPosts)).IsSuccess)
 					return action.FormFailure($"{Actor.Nickname} don't have AssignMultipleAsync permission", eventId: EventIds.Forbidden);
 
-				if (Actor.IsAdmin())
+				if ((await _unitPermissionService.CheckUnitIsAdminAsync(Actor.DiscordId)).IsSuccess)
 				{
 					action.Value = await _db.Posts.ToListAsync();
 				}

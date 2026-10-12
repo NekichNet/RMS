@@ -52,6 +52,18 @@ namespace Business.Models
         }
     }
 
+	public class RankDto
+	{
+		public int Id { get; set; }
+		public string Name { get; set; } = string.Empty;
+		public ushort CounterToReach { get; set; }
+		public string Color { get; set; } = "#00FF00";
+		public ulong? DiscordRoleId { get; set; }
+		public int Index { get; set; }
+		public int? LowerId { get; set; }
+		public int? HigherId { get; set; }
+	}
+
 	public class RankConfiguration : IEntityTypeConfiguration<Rank>
 	{
 		public void Configure(EntityTypeBuilder<Rank> builder)
