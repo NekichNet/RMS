@@ -8,12 +8,14 @@ namespace Business.Services
 {
     public class StructureService : BusinessService
     {
-        private readonly AppDbContext _db;
+		private readonly ILogger<StructureService> _logger;
+		private readonly AppDbContext _db;
 
-        public StructureService(AppDbContext db, ILogger logger) : base(logger)
+        public StructureService(AppDbContext db, ILogger<StructureService> logger)
         {
             _db = db;
-        }
+			_logger = logger;
+		}
 
         public async Task<ActionResult<List<object>>> GetStructureAsync()
         {

@@ -11,7 +11,8 @@ namespace Business.Services
 {
     public class RewardService : BusinessService
     {
-        private readonly AppDbContext _db;
+		private readonly ILogger<RewardService> _logger;
+		private readonly AppDbContext _db;
         private readonly DocService _docService;
         private readonly UnitPermissionService _unitPermissionService;
 
@@ -19,12 +20,13 @@ namespace Business.Services
             AppDbContext db,
             DocService docService,
             UnitPermissionService unitPermissionService,
-            ILogger logger) : base(logger)
+            ILogger<RewardService> logger)
         {
             _db = db;
             _docService = docService;
             _unitPermissionService = unitPermissionService;
-        }
+			_logger = logger;
+		}
 
         public async Task<ActionResult<Reward>> CreateAsync(
             string name,

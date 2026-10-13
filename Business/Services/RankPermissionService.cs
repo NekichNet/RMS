@@ -9,11 +9,13 @@ namespace Business.Services
 {
 	public class RankPermissionService : BusinessService
 	{
+		private readonly ILogger<RankPermissionService> _logger;
 		private readonly AppDbContext _db;
 
-		public RankPermissionService(AppDbContext db, ILogger logger) : base(logger)
+		public RankPermissionService(AppDbContext db, ILogger<RankPermissionService> logger)
 		{
 			_db = db;
+			_logger = logger;
 		}
 
 		public async Task<EmptyAction> CheckRankHasPermissionAsync(int rankId, PermissionType permissionType)
