@@ -10,16 +10,18 @@ namespace Business.Services
 {
     public class DocService : BusinessService
     {
+        private readonly ILogger<DocService> _logger;
         private readonly AppDbContext _db;
         private readonly UnitPermissionService _unitPermissionService;
 
         public DocService(
             UnitPermissionService unitPermissionService,
             AppDbContext db,
-            ILogger logger) : base(logger)
+            ILogger<DocService> logger)
         {
             _unitPermissionService = unitPermissionService;
             _db = db;
+            _logger = logger;
         }
 
 		public async Task<ActionResult<Doc>> CreateAsync(string title)

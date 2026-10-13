@@ -11,7 +11,8 @@ namespace Business.Services
 {
     public class PostService : BusinessService
     {
-        private readonly AppDbContext _db;
+		private readonly ILogger<PostService> _logger;
+		private readonly AppDbContext _db;
 		private readonly DocService _docService;
 		private readonly RankService _rankService;
 		private readonly SubdivisionService _subdivisionService;
@@ -23,15 +24,15 @@ namespace Business.Services
 			RankService rankService,
 			SubdivisionService subdivisionService,
 			UnitPermissionService unitPermissionService,
-			ILogger logger)
-			: base(logger)
+			ILogger<PostService> logger)
         {
             _db = db;
 			_docService = docService;
 			_rankService = rankService;
 			_subdivisionService = subdivisionService;
 			_unitPermissionService = unitPermissionService;
-        }
+			_logger = logger;
+		}
 
         public async Task<ActionResult<Post>> CreateAsync(
             string name,

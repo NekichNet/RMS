@@ -11,7 +11,8 @@ namespace Business.Services
 {
     public class RankService : BusinessService
     {
-        private readonly AppDbContext _db;
+		private readonly ILogger<RankService> _logger;
+		private readonly AppDbContext _db;
 		private readonly UnitPermissionService _unitPermissionService;
 		private readonly RankPermissionService _rankPermissionService;
 
@@ -19,13 +20,13 @@ namespace Business.Services
             AppDbContext db,
 			UnitPermissionService unitPermissionService,
 			RankPermissionService rankPermissionService,
-			ILogger logger)
-            : base(logger)
+			ILogger<RankService> logger)
         {
 			_unitPermissionService = unitPermissionService;
 			_rankPermissionService = rankPermissionService;
             _db = db;
-        }
+			_logger = logger;
+		}
 
         public async Task<ActionResult<Rank>> CreateAsync(
             string name,

@@ -10,17 +10,19 @@ namespace Business.Services
 {
     public class SubdivisionService : BusinessService
     {
-        private readonly AppDbContext _db;
+		private readonly ILogger<SubdivisionService> _logger;
+		private readonly AppDbContext _db;
         private readonly UnitPermissionService _unitPermissionService;
 
         public SubdivisionService(
 			UnitPermissionService unitPermissionService,
 			AppDbContext db,
-            ILogger logger) : base(logger)
+            ILogger<SubdivisionService> logger)
         {
             _unitPermissionService = unitPermissionService;
             _db = db;
-        }
+			_logger = logger;
+		}
 
         public async Task<ActionResult<Subdivision>> CreateAsync(
             string name,
