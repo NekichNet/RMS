@@ -3,6 +3,6 @@
     public class ActDto
     {
         public int? DocId { get; set; } = null;
-        public HashSet<ulong> UnitIds { get; set; } = new HashSet<ulong>();
+        public HashSet<string> UnitIds { get; set; } = new HashSet<string>();
     }
 }

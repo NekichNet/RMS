@@ -274,7 +274,7 @@ namespace Business.Controllers
             {
                 _rankService.Actor = HttpContext.Items["Actor"] as Unit;
 
-                var action = await _rankService.AssignMultipleAsync(actDto.UnitIds, actDto.RankId, actDto.DocId);
+                var action = await _rankService.AssignMultipleAsync(actDto.UnitIds.Select(i => ulong.Parse(i)).ToHashSet(), actDto.RankId, actDto.DocId);
                 if (!action.IsSuccess)
                 {
                     return BadRequest(new { error = action.Message });
@@ -297,7 +297,7 @@ namespace Business.Controllers
 				_rankService.Actor = HttpContext.Items["Actor"] as Unit;
 
 				var action = await _rankService.ChangeMultipleAsync(
-                    actDto.UnitIds,
+					actDto.UnitIds.Select(i => ulong.Parse(i)).ToHashSet(),
                     actDto.Steps,
                     actDto.IgnorePostMaxRank,
                     actDto.IsDowngrade,
