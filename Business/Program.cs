@@ -1,5 +1,6 @@
 using Business.Database;
 using Business.Logging.Extensions;
+using Business.Models;
 using Business.Services;
 using Business.Services.Interfaces;
 using DotNetEnv;
@@ -111,6 +112,8 @@ namespace Business
             builder.Services.AddTransient<SubdivisionService>();
 			builder.Services.AddTransient<UnitService>();
             builder.Services.AddTransient<DocService>();
+            builder.Services.AddTransient<UnitPermissionService>();
+            builder.Services.AddTransient<RankPermissionService>();
 
 			builder.Services.AddHttpClient();
             builder.Services.AddScoped<IDiscordOAuthService, DiscordOAuthService>();
