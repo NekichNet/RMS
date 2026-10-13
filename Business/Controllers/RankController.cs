@@ -11,12 +11,14 @@ namespace Business.Controllers
     public class RankController : ControllerBase
     {
         private readonly RankService _rankService;
+        private readonly RankPermissionService _rankPermissionService;
         private readonly ILogger<RankController> _logger;
 
-        public RankController(RankService rankService, ILogger<RankController> logger)
+        public RankController(RankService rankService, RankPermissionService rankPermissionService, ILogger<RankController> logger)
         {
             _rankService = rankService;
-            _logger = logger;
+			_rankPermissionService = rankPermissionService;
+			_logger = logger;
         }
 
         [HttpGet]
@@ -72,7 +74,7 @@ namespace Business.Controllers
         {
             try
             {
-                var action = await _rankService.GetAsync(rankId);
+                var action = await _rankPermissionService.GetRankPermissionsAsync(rankId);
                 if (!action.IsSuccess)
                 {
                     return BadRequest(new { error = action.Message });
@@ -82,7 +84,7 @@ namespace Business.Controllers
                     return NotFound(new { error = "Rank not found" });
                 }
 
-                var permissions = action.Value.GetPermissionsRecursive();
+                var permissions = action.Value;
                 return Ok(permissions);
             }
             catch (Exception ex)
@@ -152,13 +154,13 @@ namespace Business.Controllers
 
         [HttpPost]
         [Authorize]
-        public async Task<IActionResult> CreateRank([FromBody] Rank dto)
+        public async Task<IActionResult> CreateRank([FromBody] RankDto dto)
         {
             try
             {
                 _rankService.Actor = HttpContext.Items["Actor"] as Unit;
 
-                var newRank = await _rankService.CreateAsync(dto.Name, dto.CounterToReach, dto.Color, dto.LowerId);
+                var newRank = await _rankService.CreateAsync(dto.Name, dto.CounterToReach, dto.Color, dto.Index, dto.LowerId);
                 if (!newRank.IsSuccess)
                 {
                     return BadRequest(new { error = newRank.Message });
@@ -200,13 +202,13 @@ namespace Business.Controllers
         [Authorize]
         public async Task<IActionResult> UpdateRank(
             [FromRoute] int rankId,
-            [FromBody] Rank rank)
+            [FromBody] RankDto dto)
         {
             try
             {
                 _rankService.Actor = HttpContext.Items["Actor"] as Unit;
 
-                var action = await _rankService.UpdateAsync(rankId, rank.Name, rank.CounterToReach, rank.Color, rank.LowerId);
+                var action = await _rankService.UpdateAsync(rankId, dto.Name, dto.CounterToReach, dto.Color, dto.Index, dto.LowerId);
                 if (!action.IsSuccess)
                 {
                     return BadRequest(new { error = action.Message });

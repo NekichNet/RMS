@@ -20,17 +20,23 @@ namespace Business.Services
 		private readonly AppDbContext _db;
 		private readonly DocService _docService;
 		private readonly PostService _postService;
+		private readonly RankPermissionService _rankPermissionService;
+		private readonly UnitPermissionService _unitPermissionService;
 
 		public UnitService(
 			AppDbContext db,
 			DocService docService,
 			PostService postService,
+			RankPermissionService rankPermissionService,
+			UnitPermissionService unitPermissionService,
 			ILogger logger
 			) : base(logger)
 		{
 			_db = db;
 			_docService = docService;
 			_postService = postService;
+			_rankPermissionService = rankPermissionService;
+			_unitPermissionService = unitPermissionService;
 		}
 
 		public async Task<EmptyAction> RegisterAsync(NewUnitDto dto)
@@ -41,7 +47,7 @@ namespace Business.Services
 			{
 				if (Actor == null)
 					return action.FormFailure("Unit registration restricted. Unauthorized", eventId: EventIds.Unauthorized);
-				if (!Actor.HasPermission(PermissionType.RegisterNewUnits))
+				if (!(await _unitPermissionService.CheckUnitHasPermissionAsync(Actor.DiscordId, PermissionType.RegisterNewUnits)).IsSuccess)
 					return action.FormFailure("Unit registration restricted", eventId: EventIds.Forbidden);
 
 				ulong discordId;
@@ -198,7 +204,7 @@ namespace Business.Services
 			{
 				if (Actor != null)
 				{
-					if (Actor.HasPermission(PermissionType.DismissUnits))
+					if ((await _unitPermissionService.CheckUnitHasPermissionAsync(Actor.DiscordId, PermissionType.DismissUnits)).IsSuccess)
 					{
 						if (docId != null)
 						{
@@ -273,7 +279,7 @@ namespace Business.Services
 			{
 				if (Actor == null)
 					return action.FormFailure("Dismissing units restricted. Unauthorized", eventId: EventIds.Unauthorized);
-				if (!Actor.HasPermission(PermissionType.DismissUnits))
+				if (!(await _unitPermissionService.CheckUnitHasPermissionAsync(Actor.DiscordId, PermissionType.DismissUnits)).IsSuccess)
 					return action.FormFailure("Dismissing units restricted", eventId: EventIds.Forbidden);
 
 				if (docId != null)
@@ -313,7 +319,7 @@ namespace Business.Services
 			{
 				if (Actor != null)
 				{
-					if (Actor.HasPermission(PermissionType.AssignRetirement))
+					if ((await _unitPermissionService.CheckUnitHasPermissionAsync(Actor.DiscordId, PermissionType.AssignRetirement)).IsSuccess)
 					{
 						if (docId != null)
 						{
@@ -392,7 +398,7 @@ namespace Business.Services
 			{
 				if (Actor == null)
 					return action.FormFailure("Assigning retirements restricted. Unauthorized", eventId: EventIds.Unauthorized);
-				if (!Actor.HasPermission(PermissionType.AssignRetirement))
+				if (!(await _unitPermissionService.CheckUnitHasPermissionAsync(Actor.DiscordId, PermissionType.AssignRetirement)).IsSuccess)
 					return action.FormFailure("Assigning retirements restricted", eventId: EventIds.Forbidden);
 
 				if (docId != null)
@@ -433,7 +439,8 @@ namespace Business.Services
 			{
 				if (Actor == null)
 					return action.FormFailure("Returning inactive units restricted. Unauthorized", eventId: EventIds.Unauthorized);
-				if (!Actor.HasPermission(PermissionType.AssignRetirement) && !Actor.HasPermission(PermissionType.DismissUnits))
+				if (!(await _unitPermissionService.CheckUnitHasPermissionAsync(Actor.DiscordId, PermissionType.AssignRetirement)).IsSuccess
+					&& !(await _unitPermissionService.CheckUnitHasPermissionAsync(Actor.DiscordId, PermissionType.DismissUnits)).IsSuccess)
 					return action.FormFailure("Returning inactive units restricted", eventId: EventIds.Forbidden);
 
 				if (docId != null)
@@ -598,7 +605,7 @@ namespace Business.Services
 			{
 				if (Actor == null)
 					return action.FormFailure("Activity fixation restricted. Unauthorized", eventId: EventIds.Unauthorized);
-				if (!Actor.HasPermission(PermissionType.FixActivity))
+				if (!(await _unitPermissionService.CheckUnitHasPermissionAsync(Actor.DiscordId, PermissionType.FixActivity)).IsSuccess)
 					return action.FormFailure("Activity fixation restricted", eventId: EventIds.Forbidden);
 
 				Unit? unit = await _db.Units.FindAsync(unitId);
@@ -633,7 +640,7 @@ namespace Business.Services
 			{
 				if (Actor == null)
 					return action.FormFailure("Multiple activity fixation restricted. Unauthorized", eventId: EventIds.Unauthorized);
-				if (!Actor.HasPermission(PermissionType.FixActivity))
+				if (!(await _unitPermissionService.CheckUnitHasPermissionAsync(Actor.DiscordId, PermissionType.FixActivity)).IsSuccess)
 					return action.FormFailure("Multiple activity fixation restricted", eventId: EventIds.Forbidden);
 
 				List<Activity> activities = new List<Activity>();
@@ -684,7 +691,7 @@ namespace Business.Services
 			{
 				if (Actor == null)
 					return action.FormFailure("Applying status restricted. Unauthorized", eventId: EventIds.Unauthorized);
-				if (!Actor.HasPermission(PermissionType.AssignStatuses))
+				if (!(await _unitPermissionService.CheckUnitHasPermissionAsync(Actor.DiscordId, PermissionType.AssignStatuses)).IsSuccess)
 					return action.FormFailure("Applying status restricted", eventId: EventIds.Forbidden);
 
 				Unit? unit = await _db.Units.FindAsync(unitId);
@@ -759,7 +766,7 @@ namespace Business.Services
 			{
 				if (Actor == null)
 					return action.FormFailure("Applying statuses restricted. Unauthorized", eventId: EventIds.Unauthorized);
-				if (!Actor.HasPermission(PermissionType.AssignStatuses))
+				if (!(await _unitPermissionService.CheckUnitHasPermissionAsync(Actor.DiscordId, PermissionType.AssignStatuses)).IsSuccess)
 					return action.FormFailure("Applying statuses restricted", eventId: EventIds.Forbidden);
 
 				if (docId != null)
@@ -912,33 +919,6 @@ namespace Business.Services
 			return action;
 		}
 		*/
-
-		public async Task<ActionResult<HashSet<Permission>>> GetPermissionsAsync(ulong unitId)
-		{
-			ActionResult<HashSet<Permission>> action = new ActionResult<HashSet<Permission>> (_logger);
-
-			try
-			{
-				Unit? unit = await _db.Units.FindAsync(unitId);
-
-				if (unit != null)
-				{
-					action.Value = unit.GetPermissions();
-					action.FormSuccess($"{unit.Nickname}'s permissions retrieved. Length: " + action.Value.Count(),
-						eventId: action.Value.Count() > 0 ? EventIds.Read : EventIds.NoData);
-				}
-				else
-				{
-					action.FormFailure($"Getting unit permissions failed. Unit with Discord ID {unitId} not found", eventId: EventIds.NotFound);
-				}
-			}
-			catch (Exception ex)
-			{
-				action.FormException(ex);
-			}
-
-			return action;
-		}
 
 		public async Task<ActionResult<Status>> GetUnitStatusAsync(ulong unitId, int statusId)
 		{

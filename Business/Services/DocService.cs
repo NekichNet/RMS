@@ -11,9 +11,14 @@ namespace Business.Services
     public class DocService : BusinessService
     {
         private readonly AppDbContext _db;
+        private readonly UnitPermissionService _unitPermissionService;
 
-        public DocService(AppDbContext db, ILogger logger) : base(logger)
+        public DocService(
+            UnitPermissionService unitPermissionService,
+            AppDbContext db,
+            ILogger logger) : base(logger)
         {
+            _unitPermissionService = unitPermissionService;
             _db = db;
         }
 
@@ -25,7 +30,7 @@ namespace Business.Services
             {
                 if (Actor == null)
                     return action.FormFailure("Doc creation restricted. Unauthorized", eventId: EventIds.Unauthorized);
-                if (!Actor.HasPermission(PermissionType.UploadDocs))
+                if (!(await _unitPermissionService.CheckUnitHasPermissionAsync(Actor.DiscordId, PermissionType.UploadDocs)).IsSuccess)
                     return action.FormFailure("Doc creation restricted", eventId: EventIds.Forbidden);
 
                 action.Value = new Doc()
@@ -60,7 +65,7 @@ namespace Business.Services
                 {
                     if (Actor == null)
 						return action.FormFailure($"Doc with ID {docId} not found", eventId: EventIds.NotFound);
-					if (!Actor.HasPermission(PermissionType.SeeHiddenDocs))
+					if (!(await _unitPermissionService.CheckUnitHasPermissionAsync(Actor.DiscordId, PermissionType.SeeHiddenDocs)).IsSuccess)
 						return action.FormFailure($"Doc with ID {docId} not found", eventId: EventIds.NotFound);
 				}
 
@@ -84,7 +89,7 @@ namespace Business.Services
 			{
                 if (Actor != null)
                 {
-					if (Actor.HasPermission(PermissionType.SeeHiddenDocs))
+					if ((await _unitPermissionService.CheckUnitHasPermissionAsync(Actor.DiscordId, PermissionType.SeeHiddenDocs)).IsSuccess)
                     {
 						action.Value = await _db.Docs.ToListAsync();
 					}
@@ -117,9 +122,9 @@ namespace Business.Services
                 Doc? doc = await _db.Docs.FindAsync(docId);
                 if (doc == null)
                     return action.FormFailure($"Deleting doc failed. Doc with ID {docId} not found", eventId: EventIds.NotFound);
-                if (doc.IsHidden && !Actor.HasPermission(PermissionType.SeeHiddenDocs))
+                if (doc.IsHidden && !(await _unitPermissionService.CheckUnitHasPermissionAsync(Actor.DiscordId, PermissionType.SeeHiddenDocs)).IsSuccess)
                     return action.FormFailure($"Deleting doc failed. Doc with ID {docId} not found", eventId: EventIds.NotFound);
-                if (doc.AuthorId != Actor.DiscordId && !Actor.IsAdmin())
+                if (doc.AuthorId != Actor.DiscordId && !(await _unitPermissionService.CheckUnitIsAdminAsync(Actor.DiscordId)).IsSuccess)
                     return action.FormFailure($"Deleting doc {doc.Title} with ID {docId} restricted", eventId: EventIds.Forbidden);
 
                 _db.Docs.Remove(doc);

@@ -18,13 +18,20 @@ namespace Business.Controllers
 		private readonly UnitService _unitService;
 		private readonly RankService _rankService;
 		private readonly PostService _postService;
+		private readonly UnitPermissionService _unitPermissionService;
 		private readonly ILogger<UnitController> _logger;
 
-		public UnitController(UnitService unitService, RankService rankService, PostService postService, ILogger<UnitController> logger)
+		public UnitController(
+			UnitService unitService,
+			RankService rankService,
+			PostService postService,
+			UnitPermissionService unitPermissionService,
+			ILogger<UnitController> logger)
 		{
 			_unitService = unitService;
 			_rankService = rankService;
 			_postService = postService;
+			_unitPermissionService = unitPermissionService;
 			_logger = logger;
 		}
 
@@ -187,7 +194,7 @@ namespace Business.Controllers
 		{
 			try
 			{
-				var result = await _unitService.GetPermissionsAsync(unitId);
+				var result = await _unitPermissionService.GetUnitPermissionsAsync(unitId);
 
 				if (!result.IsSuccess)
 				{
