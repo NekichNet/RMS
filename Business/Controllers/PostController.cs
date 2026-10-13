@@ -297,7 +297,7 @@ namespace Business.Controllers
             {
                 _postService.Actor = HttpContext.Items["Actor"] as Unit;
 
-                var action = await _postService.AssignMultipleAsync(actDto.UnitIds, actDto.PostIds, actDto.Overwrite, actDto.DocId);
+                var action = await _postService.AssignMultipleAsync(actDto.UnitIds.Select(i => ulong.Parse(i)).ToHashSet(), actDto.PostIds, actDto.Overwrite, actDto.DocId);
                 if (!action.IsSuccess)
                 {
                     return BadRequest(new { error = action.Message });

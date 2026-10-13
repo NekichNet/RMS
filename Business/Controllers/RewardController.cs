@@ -257,7 +257,7 @@ namespace Business.Controllers
             {
                 _rewardService.Actor = HttpContext.Items["Actor"] as Unit;
 
-                var action = await _rewardService.AssignMultipleAsync(actDto.UnitIds, actDto.RewardIds, actDto.DocId);
+                var action = await _rewardService.AssignMultipleAsync(actDto.UnitIds.Select(i => ulong.Parse(i)).ToHashSet(), actDto.RewardIds, actDto.DocId);
                 if (!action.IsSuccess)
                 {
                     return BadRequest(new { error = action.Message });

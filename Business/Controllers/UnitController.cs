@@ -143,7 +143,7 @@ namespace Business.Controllers
 
 				var result = await _unitService.ApplyStatusMultipleAsync(
 					(StatusType)actDto.StatusKey,
-					actDto.UnitIds,
+					actDto.UnitIds.Select(i => ulong.Parse(i)).ToHashSet(),
 					actDto.Ovewrite,
 					actDto.End,
 					actDto.Days,
@@ -285,7 +285,7 @@ namespace Business.Controllers
 				_unitService.Actor = HttpContext.Items["Actor"] as Unit;
 
 				var result = await _unitService.ReturnToActiveMultipleAsync(
-					actDto.UnitIds,
+					actDto.UnitIds.Select(i => ulong.Parse(i)).ToHashSet(),
 					actDto.PostIds,
 					actDto.RankId,
 					actDto.DocId
@@ -356,7 +356,7 @@ namespace Business.Controllers
 			{
 				_unitService.Actor = HttpContext.Items["Actor"] as Unit;
 
-				var result = await _unitService.AssignRetirenmentMultipleAsync(actDto.UnitIds, actDto.DocId);
+				var result = await _unitService.AssignRetirenmentMultipleAsync(actDto.UnitIds.Select(i => ulong.Parse(i)).ToHashSet(), actDto.DocId);
 				if (!result.IsSuccess)
 				{
 					return BadRequest(new { error = result.Message });
@@ -379,7 +379,7 @@ namespace Business.Controllers
 			{
 				_unitService.Actor = HttpContext.Items["Actor"] as Unit;
 
-				var result = await _unitService.DismissMultipleAsync(actDto.UnitIds, actDto.DocId);
+				var result = await _unitService.DismissMultipleAsync(actDto.UnitIds.Select(i => ulong.Parse(i)).ToHashSet(), actDto.DocId);
 				if (!result.IsSuccess)
 				{
 					return BadRequest(new { error = result.Message });
