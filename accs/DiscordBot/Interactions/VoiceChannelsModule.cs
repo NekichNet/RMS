@@ -54,13 +54,14 @@ namespace accs.DiscordBot.Interactions
 
 			if (after.VoiceChannel.Id == _voiceChannelId)
             {
+                const string channelDefaultName = "Голосовой";
                 var channels = guild.Channels;
                 List<string> channelNames = new List<string>();
 
                 foreach (var channel in channels) {
                     if (channel.ChannelType == ChannelType.Voice) 
                     {
-                        if (channel.Name.Contains("【🔊】Пех"))
+                        if (channel.Name.Contains($"【🔊】{channelDefaultName}"))
                         {
                             channelNames.Add(channel.Name);
                         }
@@ -68,7 +69,7 @@ namespace accs.DiscordBot.Interactions
                 }
 
                 int freeNumber = 1;
-                while (channelNames.Contains($"【🔊】Пех {freeNumber}"))
+                while (channelNames.Contains($"【🔊】{channelDefaultName} {freeNumber}"))
                 {
                     freeNumber++;
                 }
@@ -81,14 +82,15 @@ namespace accs.DiscordBot.Interactions
                 }
 
                 /// Channel creation and block for everyone to connect
-                var newChannel = await guild.CreateVoiceChannelAsync($"【🔊】Пех {freeNumber}", (props) => { props.Bitrate = 64000; props.UserLimit = null; props.CategoryId = voiceCategoryId; props.RTCRegion = after.VoiceChannel.RTCRegion; });
+                var newChannel = await guild.CreateVoiceChannelAsync($"【🔊】{channelDefaultName} {freeNumber}", (props) => { props.Bitrate = 64000; props.UserLimit = null; props.CategoryId = voiceCategoryId; props.RTCRegion = after.VoiceChannel.RTCRegion; });
 
                 /// Permission for needed users being granted
                 SocketGuildUser guildUser = guild.GetUser(user.Id);
-                await newChannel.AddPermissionOverwriteAsync(guildUser, new OverwritePermissions(manageChannel: PermValue.Allow));
+                // await newChannel.AddPermissionOverwriteAsync(guildUser, new OverwritePermissions(manageChannel: PermValue.Allow)); согласно приказу, теперь только определённые должности имеют право переименовывать
                 await guild.MoveAsync(guildUser, newChannel);
             }
-        }
+
+		}
 
         //[SlashCommand("access", "Откройте доступ к каналу для клана или для всех")] 
         public async Task OnGivingAccessCommand(AccessChoices accessChoices)
